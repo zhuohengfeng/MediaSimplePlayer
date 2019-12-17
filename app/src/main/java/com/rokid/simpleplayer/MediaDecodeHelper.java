@@ -9,6 +9,7 @@ import android.media.MediaExtractor;
 import android.media.MediaFormat;
 
 import com.rokid.simpleplayer.gl.Logger;
+import com.rokid.simpleplayer.gl.YUVHelper;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -22,6 +23,9 @@ public class MediaDecodeHelper {
     private boolean isPlaying;
     private boolean isPause;
     private String filePath;
+
+    private int videoWidth;
+    private int videoHeight;
 
     // 是否取消播放线程
     private boolean cancel = false;
@@ -181,12 +185,12 @@ public class MediaDecodeHelper {
             videoTrackIndex = getTrackIndex(videoExtractor, "video/");
             if (videoTrackIndex >= 0) {
                 MediaFormat mediaFormat = videoExtractor.getTrackFormat(videoTrackIndex);
-                int width = mediaFormat.getInteger(MediaFormat.KEY_WIDTH);
-                int height = mediaFormat.getInteger(MediaFormat.KEY_HEIGHT);
+                videoWidth = mediaFormat.getInteger(MediaFormat.KEY_WIDTH);
+                videoHeight = mediaFormat.getInteger(MediaFormat.KEY_HEIGHT);
                 float time = mediaFormat.getLong(MediaFormat.KEY_DURATION) / 1000000;
                 // 回调准备好的宽高
                 if (mMediaDecodeListener != null) {
-                    mMediaDecodeListener.onPrepared(width, height);
+                    mMediaDecodeListener.onPrepared(videoWidth, videoHeight);
                 }
                 videoExtractor.selectTrack(videoTrackIndex);
                 try {
@@ -196,7 +200,7 @@ public class MediaDecodeHelper {
 
                     showSupportedColorFormat(videoCodec.getCodecInfo().getCapabilitiesForType(mime));
                     if(isColorFormatSupported(decodeColorFormat, videoCodec.getCodecInfo().getCapabilitiesForType(mime))){
-                        Logger.d( "设置COLOR_FormatYUV420Flexible格式");
+                        Logger.d( "设置COLOR_FormatYUV420Flexible格式, videoWidth="+videoWidth+", videoHeight="+videoHeight);
                         mediaFormat.setInteger(MediaFormat.KEY_COLOR_FORMAT, decodeColorFormat);
                     }
 
@@ -247,13 +251,12 @@ public class MediaDecodeHelper {
 
                             // 解出YUV数据
                             Image image = videoCodec.getOutputImage(outputBufferIndex);
-                            //Log.d(TAG, "zhf-nv21: 得到解码后的nv21数据： image="+image);
                             if (image != null) {
-                                byte[] data = getDataFromImage(image, COLOR_FormatNV21);
+                                byte[] data = getDataFromImage(image);
+//                                byte[] data = getDataFromImageNative(image, videoWidth, videoHeight);
                                 if (mMediaDecodeListener != null && data!=null) {
                                     mMediaDecodeListener.onPreviewCallback(data, startMs);
                                 }
-//                                Logger.d("zhf-nv21: 得到解码后的nv21数据： data.size="+data.length);
                             }
 
                             // 释放资源
@@ -280,7 +283,6 @@ public class MediaDecodeHelper {
         }
     }
 
-
     //================ For NV21 格式转换 ==========================
     private boolean isColorFormatSupported(int colorFormat, MediaCodecInfo.CodecCapabilities codecCapabilities){
         for (int c:codecCapabilities.colorFormats){
@@ -299,96 +301,44 @@ public class MediaDecodeHelper {
         Logger.d("supported color format: "+builder.toString());
     }
 
-    private static final int COLOR_FormatI420 = 1;
-    private static final int COLOR_FormatNV21 = 2;
-
-    private static byte[] getDataFromImage(Image image, int colorFormat) {
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.LOLLIPOP) {
-            if (colorFormat != COLOR_FormatI420 && colorFormat != COLOR_FormatNV21) {
-                throw new IllegalArgumentException("only support COLOR_FormatI420 " + "and COLOR_FormatNV21");
-            }
-            if (!isImageFormatSupported(image)) {
-                throw new RuntimeException("can't convert Image to byte array, format " + image.getFormat());
-            }
-            Rect crop = null;
-
-            crop = image.getCropRect();
-
-            int format = image.getFormat();
-            int width = crop.width();
-            int height = crop.height();
+    private byte[] mPreviewData;
+    private byte[] getDataFromImage(Image image) {
+        if (image != null) {
             Image.Plane[] planes = image.getPlanes();
-            byte[] data = new byte[width * height * ImageFormat.getBitsPerPixel(format) / 8];
-            byte[] rowData = new byte[planes[0].getRowStride()];
-            int channelOffset = 0;
-            int outputStride = 1;
-            for (int i = 0; i < planes.length; i++) {
-                switch (i) {
-                    case 0:
-                        channelOffset = 0;
-                        outputStride = 1;
-                        break;
-                    case 1:
-                        if (colorFormat == COLOR_FormatI420) {
-                            channelOffset = width * height;
-                            outputStride = 1;
-                        } else if (colorFormat == COLOR_FormatNV21) {
-                            channelOffset = width * height + 1;
-                            outputStride = 2;
-                        }
-                        break;
-                    case 2:
-                        if (colorFormat == COLOR_FormatI420) {
-                            channelOffset = (int) (width * height * 1.25);
-                            outputStride = 1;
-                        } else if (colorFormat == COLOR_FormatNV21) {
-                            channelOffset = width * height;
-                            outputStride = 2;
-                        }
-                        break;
+            if (planes.length > 0) {
+                ByteBuffer buffer = planes[0].getBuffer();
+                int bufferSize = image.getWidth()*image.getHeight()*3/2;
+                if (mPreviewData == null || mPreviewData.length != bufferSize) {
+                    mPreviewData = new byte[bufferSize];
                 }
-                ByteBuffer buffer = planes[i].getBuffer();
-                int rowStride = planes[i].getRowStride();
-                int pixelStride = planes[i].getPixelStride();
-                int shift = (i == 0) ? 0 : 1;
-                int w = width >> shift;
-                int h = height >> shift;
-                buffer.position(rowStride * (crop.top >> shift) + pixelStride * (crop.left >> shift));
-                for (int row = 0; row < h; row++) {
-                    int length;
-                    if (pixelStride == 1 && outputStride == 1) {
-                        length = w;
-                        buffer.get(data, channelOffset, length);
-                        channelOffset += length;
-                    } else {
-                        length = (w - 1) * pixelStride + 1;
-                        buffer.get(rowData, 0, length);
-                        for (int col = 0; col < w; col++) {
-                            data[channelOffset] = rowData[col * pixelStride];
-                            channelOffset += outputStride;
-                        }
-                    }
-                    if (row < h - 1) {
-                        buffer.position(buffer.position() + rowStride - length);
-                    }
-                }
+                buffer.get(mPreviewData,0,image.getWidth()*image.getHeight());
+                ByteBuffer buffer2 = planes[2].getBuffer();
+                buffer2.get(mPreviewData,image.getWidth()*image.getHeight(), buffer2.remaining());
+                return mPreviewData;
             }
-            return data;
         }
         return null;
     }
 
-    private static boolean isImageFormatSupported(Image image) {
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.LOLLIPOP) {
-            int format = image.getFormat();
-            switch (format) {
-                case ImageFormat.YUV_420_888:
-                case ImageFormat.NV21:
-                case ImageFormat.YV12:
-                    return true;
-            }
-            return false;
-        }
-        return false;
-    }
+//    private byte[] getDataFromImageNative(Image image, int width, int height) {
+//        if (image != null) {
+//            Image.Plane[] planes = image.getPlanes();
+//            if (planes.length > 0) {
+//                ByteBuffer buffer = planes[0].getBuffer();
+//                int bufferSize = image.getWidth()*image.getHeight()*3/2;
+//                if (mPreviewData == null || mPreviewData.length != bufferSize) {
+//                    mPreviewData = new byte[bufferSize];
+//                }
+//
+//                YUVHelper.yuvI420ToNV21( , mPreviewData, width, height);
+//
+//                buffer.get(mPreviewData,0,image.getWidth()*image.getHeight());
+//                ByteBuffer buffer2 = planes[2].getBuffer();
+//                buffer2.get(mPreviewData,image.getWidth()*image.getHeight(),buffer2.remaining());
+//                return mPreviewData;
+//            }
+//        }
+//        return null;
+//    }
+
 }

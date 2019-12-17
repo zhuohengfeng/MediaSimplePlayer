@@ -209,7 +209,7 @@ public class FaceHelper {
         if (faceListener != null) {
             if (ftEngine != null) {
                 faceInfoList.clear();
-                long ftStartTime = System.currentTimeMillis();
+//                long ftStartTime = System.currentTimeMillis();
                 int code = ftEngine.detectFaces(nv21, previewWidth, previewHeight, FaceEngine.CP_PAF_NV21, faceInfoList);
                 if (code != ErrorInfo.MOK) {
                     faceListener.onFail(new Exception("ft failed,code is " + code));
@@ -219,7 +219,7 @@ public class FaceHelper {
                 /*
                  * 若需要多人脸搜索，删除此行代码
                  */
-                TrackUtil.keepMaxFace(faceInfoList);
+//                TrackUtil.keepMaxFace(faceInfoList);
                 refreshTrackId(faceInfoList);
             }
             facePreviewInfoList.clear();

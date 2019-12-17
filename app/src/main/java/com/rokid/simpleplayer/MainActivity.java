@@ -140,20 +140,13 @@ public class MainActivity extends BaseActivity implements MediaDecodeListener {
         //本地人脸库初始化
         FaceServer.getInstance().init(MainActivity.this);
 
-        // 设置识别角度
-        ConfigUtil.setFtOrient(MainActivity.this, ASF_OP_ALL_OUT);
-
         ftEngine = new FaceEngine();
-        ftInitCode = ftEngine.init(this, DetectMode.ASF_DETECT_MODE_VIDEO, ConfigUtil.getFtOrient(this),
+        ftInitCode = ftEngine.init(this, DetectMode.ASF_DETECT_MODE_VIDEO, ASF_OP_ALL_OUT,
                 16, MAX_DETECT_NUM, FaceEngine.ASF_FACE_DETECT);
 
         frEngine = new FaceEngine();
-        frInitCode = frEngine.init(this, DetectMode.ASF_DETECT_MODE_IMAGE, DetectFaceOrientPriority.ASF_OP_0_ONLY,
+        frInitCode = frEngine.init(this, DetectMode.ASF_DETECT_MODE_IMAGE, ASF_OP_ALL_OUT,
                 16, MAX_DETECT_NUM, FaceEngine.ASF_FACE_RECOGNITION);
-
-        flEngine = new FaceEngine();
-        flInitCode = flEngine.init(this, DetectMode.ASF_DETECT_MODE_IMAGE, DetectFaceOrientPriority.ASF_OP_0_ONLY,
-                16, MAX_DETECT_NUM, FaceEngine.ASF_LIVENESS);
 
         VersionInfo versionInfo = new VersionInfo();
         ftEngine.getVersion(versionInfo);
@@ -166,11 +159,6 @@ public class MainActivity extends BaseActivity implements MediaDecodeListener {
         }
         if (frInitCode != ErrorInfo.MOK) {
             String error = getString(R.string.specific_engine_init_failed, "frEngine", frInitCode);
-            Logger.e("initEngine: " + error);
-            showToast(error);
-        }
-        if (flInitCode != ErrorInfo.MOK) {
-            String error = getString(R.string.specific_engine_init_failed, "flEngine", flInitCode);
             Logger.e("initEngine: " + error);
             showToast(error);
         }
@@ -190,12 +178,6 @@ public class MainActivity extends BaseActivity implements MediaDecodeListener {
             synchronized (frEngine) {
                 int frUnInitCode = frEngine.unInit();
                 Logger.e("unInitEngine: " + frUnInitCode);
-            }
-        }
-        if (flInitCode == ErrorInfo.MOK && flEngine != null) {
-            synchronized (flEngine) {
-                int flUnInitCode = flEngine.unInit();
-                Logger.e("unInitEngine: " + flUnInitCode);
             }
         }
     }
@@ -258,8 +240,8 @@ public class MainActivity extends BaseActivity implements MediaDecodeListener {
         mGLRawDataRender.setVideoWidthAndHeight(mWidth, mHeight);
 
         // -----------人脸识别相关---------------
-        drawHelper = new DrawHelper(mWidth, mHeight, mWidth, mHeight, 180
-                , 0, false, false, false);
+        drawHelper = new DrawHelper(mWidth, mHeight, mGLSurfaceView.getWidth(), mGLSurfaceView.getHeight(), 0
+                , 1, true, false, false);
 
         // 切换相机的时候可能会导致预览尺寸发生变化
         if (faceHelper == null) {
@@ -272,7 +254,6 @@ public class MainActivity extends BaseActivity implements MediaDecodeListener {
             faceHelper = new FaceHelper.Builder()
                     .ftEngine(ftEngine)
                     .frEngine(frEngine)
-                    .flEngine(flEngine)
                     .frQueueSize(MAX_DETECT_NUM)
                     .flQueueSize(MAX_DETECT_NUM)
                     .previewSize(mWidth, mHeight)
@@ -300,34 +281,29 @@ public class MainActivity extends BaseActivity implements MediaDecodeListener {
             mGLRawDataRender.setRawData(ybuf, uvbuf);
             mGLSurfaceView.requestRender();
             timeStamp = time;
+        }
 
-            // -----------人脸识别相关---------------
-            if (faceRectView != null) {
-                faceRectView.clearFaceInfo();
-            }
+        // -----------人脸识别相关---------------
+        if (faceRectView != null) {
+            faceRectView.clearFaceInfo();
+        }
 
-            // 输入人脸nv21数据
-            List<FacePreviewInfo> facePreviewInfoList = faceHelper.onPreviewFrame(bytes);
-            if (facePreviewInfoList != null && faceRectView != null && drawHelper != null) {
-                drawPreviewInfo(facePreviewInfoList);
-            }
+        // 输入人脸nv21数据
+        List<FacePreviewInfo> facePreviewInfoList = faceHelper.onPreviewFrame(bytes);
+        if (facePreviewInfoList != null && faceRectView != null && drawHelper != null) {
+            drawPreviewInfo(facePreviewInfoList);
+        }
 
-            registerFace(bytes, facePreviewInfoList, mWidth, mHeight);
-            clearLeftFace(facePreviewInfoList);
-
-            if (facePreviewInfoList != null && facePreviewInfoList.size() > 0) {
-                for (int i = 0; i < facePreviewInfoList.size(); i++) {
-                    Integer status = requestFeatureStatusMap.get(facePreviewInfoList.get(i).getTrackId());
-                    /**
-                     * 对于每个人脸，若状态为空或者为失败，则请求特征提取（可根据需要添加其他判断以限制特征提取次数），
-                     * 特征提取回传的人脸特征结果在{@link FaceListener#onFaceFeatureInfoGet(FaceFeature, Integer, Integer)}中回传
-                     */
-                    if (status == null
-                            || status == RequestFeatureStatus.TO_RETRY) {
-                        requestFeatureStatusMap.put(facePreviewInfoList.get(i).getTrackId(), RequestFeatureStatus.SEARCHING);
-                        faceHelper.requestFaceFeature(bytes, facePreviewInfoList.get(i).getFaceInfo(), mWidth, mHeight, FaceEngine.CP_PAF_NV21, facePreviewInfoList.get(i).getTrackId());
+        registerFace(bytes, facePreviewInfoList, mWidth, mHeight);
+        clearLeftFace(facePreviewInfoList);
+        if (facePreviewInfoList != null && facePreviewInfoList.size() > 0) {
+            for (int i = 0; i < facePreviewInfoList.size(); i++) {
+                Integer status = requestFeatureStatusMap.get(facePreviewInfoList.get(i).getTrackId());
+                if (status == null
+                        || status == RequestFeatureStatus.TO_RETRY) {
+                    requestFeatureStatusMap.put(facePreviewInfoList.get(i).getTrackId(), RequestFeatureStatus.SEARCHING);
+                    faceHelper.requestFaceFeature(bytes, facePreviewInfoList.get(i).getFaceInfo(), mWidth, mHeight, FaceEngine.CP_PAF_NV21, facePreviewInfoList.get(i).getTrackId());
 //                            Log.i(TAG, "onPreview: fr start = " + System.currentTimeMillis() + " trackId = " + facePreviewInfoList.get(i).getTrackedFaceCount());
-                    }
                 }
             }
         }
@@ -430,14 +406,9 @@ public class MainActivity extends BaseActivity implements MediaDecodeListener {
      * 用于特征提取的引擎
      */
     private FaceEngine frEngine;
-    /**
-     * IMAGE模式活体检测引擎，用于预览帧人脸活体检测
-     */
-    private FaceEngine flEngine;
 
     private int ftInitCode = -1;
     private int frInitCode = -1;
-    private int flInitCode = -1;
     private FaceHelper faceHelper;
     private List<CompareResult> compareResultList;
     private FaceSearchResultAdapter adapter;
@@ -567,9 +538,13 @@ public class MainActivity extends BaseActivity implements MediaDecodeListener {
 
     private void drawPreviewInfo(List<FacePreviewInfo> facePreviewInfoList) {
         List<DrawInfo> drawInfoList = new ArrayList<>();
+        // 有几个人脸识别
         for (int i = 0; i < facePreviewInfoList.size(); i++) {
-            String name = faceHelper.getName(facePreviewInfoList.get(i).getTrackId());
-            Integer recognizeStatus = requestFeatureStatusMap.get(facePreviewInfoList.get(i).getTrackId());
+            int trackId = facePreviewInfoList.get(i).getTrackId();
+            String name = faceHelper.getName(trackId);
+            Integer recognizeStatus = requestFeatureStatusMap.get(trackId);
+
+            Logger.d("drawPreviewInfo trackId="+trackId+", name="+name+", recognizeStatus="+recognizeStatus);
 
             // 根据识别结果和活体结果设置颜色
             int color = RecognizeColor.COLOR_UNKNOWN;
@@ -584,7 +559,7 @@ public class MainActivity extends BaseActivity implements MediaDecodeListener {
 
             drawInfoList.add(new DrawInfo(drawHelper.adjustRect(facePreviewInfoList.get(i).getFaceInfo().getRect()),
                     GenderInfo.UNKNOWN, AgeInfo.UNKNOWN_AGE, LivenessInfo.UNKNOWN, color,
-                    name == null ? String.valueOf(facePreviewInfoList.get(i).getTrackId()) : name));
+                    name == null ? String.valueOf(trackId) : name));
         }
         drawHelper.draw(faceRectView, drawInfoList);
     }

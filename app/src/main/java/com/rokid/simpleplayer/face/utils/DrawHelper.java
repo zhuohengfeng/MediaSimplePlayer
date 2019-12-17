@@ -11,6 +11,7 @@ import com.arcsoft.face.GenderInfo;
 import com.arcsoft.face.LivenessInfo;
 import com.rokid.simpleplayer.face.model.DrawInfo;
 import com.rokid.simpleplayer.face.widget.FaceRectView;
+import com.rokid.simpleplayer.gl.Logger;
 
 import java.util.List;
 
