@@ -130,7 +130,7 @@ public class GLRawDataRender implements GLSurfaceView.Renderer {
         }
     }
 
-    public synchronized void setRawData(ByteBuffer ybuf, ByteBuffer uvbuf) {
+    public void setRawData(ByteBuffer ybuf, ByteBuffer uvbuf) {
         this.yBuffer = ybuf;
         this.uvBuffer = uvbuf;
     }

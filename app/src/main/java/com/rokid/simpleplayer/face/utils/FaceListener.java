@@ -33,5 +33,5 @@ public interface FaceListener {
      * @param requestId    请求码
      * @param errorCode    错误码
      */
-    void onFaceLivenessInfoGet(@Nullable LivenessInfo livenessInfo, Integer requestId, Integer errorCode);
+//    void onFaceLivenessInfoGet(@Nullable LivenessInfo livenessInfo, Integer requestId, Integer errorCode);
 }

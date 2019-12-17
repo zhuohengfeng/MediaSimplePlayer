@@ -6,4 +6,22 @@
     <string name="recognize_failed_notice">未通过:%s</string>
     <string name="recognize_success_notice">通过:%s</string>
     <string name="low_confidence_level">人脸置信度低</string>
+
+    <!--批量处理-->
+    <string name="ok">确认</string>
+    <string name="cancel">取消</string>
+    <string name="batch_process_notification_register">请将需要注册的图片放在\nsdcard/arcfacedemo/register\n目录下</string>
+    <string name="batch_process_no_face_need_to_delete">无人脸需要删除</string>
+    <string name="batch_process_confirm_delete">确认删除这%d张图片及人脸特征？</string>
+    <string name="batch_process_batch_register">批量注册</string>
+    <string name="batch_process_notification">提示</string>
+    <string name="batch_process_clear_faces">清空人脸库</string>
+    <string name="batch_process_path_is_not_exists">路径 \n%s\n 不存在</string>
+    <string name="batch_process_path_is_not_dir">路径 \n%s\n 不是文件夹</string>
+    <string name="batch_process_processing_please_wait">处理中，请稍等</string>
+    <string name="batch_process_finished_info">处理完成！\n处理总数 =  %d \n成功数 = %d \n失败数 = %d \n处理失败的图片已保存在文件夹 \' %s \'</string>
+
+    <!--人脸批量注册进度框-->
+    <string name="progress_dialog_batch_register">进度: %d / %d</string>
+    <string name="progress_dialog_registering_please_wait">注册中，请稍等</string>
 </resources>

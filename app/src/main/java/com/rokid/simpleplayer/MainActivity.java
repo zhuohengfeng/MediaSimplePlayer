@@ -2,18 +2,24 @@ package com.rokid.simpleplayer;
 
 
 import android.Manifest;
+import android.app.AlertDialog;
+import android.content.DialogInterface;
 import android.content.pm.ActivityInfo;
 import android.content.pm.ApplicationInfo;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.hardware.Camera;
 import android.opengl.GLSurfaceView;
 import android.os.Build;
 import android.os.Bundle;
 
+import android.os.Environment;
 import android.util.DisplayMetrics;
 import android.util.Log;
 import android.view.View;
 import android.view.WindowManager;
 import android.widget.Switch;
+import android.widget.TextView;
 
 import androidx.core.app.ActivityCompat;
 import androidx.recyclerview.widget.DefaultItemAnimator;
@@ -30,6 +36,9 @@ import com.arcsoft.face.LivenessInfo;
 import com.arcsoft.face.VersionInfo;
 import com.arcsoft.face.enums.DetectFaceOrientPriority;
 import com.arcsoft.face.enums.DetectMode;
+import com.arcsoft.imageutil.ArcSoftImageFormat;
+import com.arcsoft.imageutil.ArcSoftImageUtil;
+import com.arcsoft.imageutil.ArcSoftImageUtilError;
 import com.rokid.simpleplayer.face.FaceConstants;
 import com.rokid.simpleplayer.face.faceserver.CompareResult;
 import com.rokid.simpleplayer.face.faceserver.FaceServer;
@@ -45,14 +54,19 @@ import com.rokid.simpleplayer.face.utils.RequestFeatureStatus;
 import com.rokid.simpleplayer.face.utils.RequestLivenessStatus;
 import com.rokid.simpleplayer.face.widget.FaceRectView;
 import com.rokid.simpleplayer.face.widget.FaceSearchResultAdapter;
+import com.rokid.simpleplayer.face.widget.ProgressDialog;
 import com.rokid.simpleplayer.gl.Logger;
 
+import java.io.File;
+import java.io.FilenameFilter;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Enumeration;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
 import io.reactivex.Observable;
@@ -125,6 +139,7 @@ public class MainActivity extends BaseActivity implements MediaDecodeListener {
 
     private void initView() {
         faceRectView = findViewById(R.id.single_camera_face_rect_view);
+        tvNotificationRegisterResult = findViewById(R.id.notification_register_result);
 
         RecyclerView recyclerShowFaceInfo = findViewById(R.id.single_camera_recycler_view_person);
         compareResultList = new ArrayList<>();
@@ -134,6 +149,9 @@ public class MainActivity extends BaseActivity implements MediaDecodeListener {
         int spanCount = (int) (dm.widthPixels / (getResources().getDisplayMetrics().density * 100 + 0.5f));
         recyclerShowFaceInfo.setLayoutManager(new GridLayoutManager(this, spanCount));
         recyclerShowFaceInfo.setItemAnimator(new DefaultItemAnimator());
+
+        // 注册进度条
+        progressDialog = new ProgressDialog(this);
     }
 
     private void initEngine() {
@@ -230,6 +248,14 @@ public class MainActivity extends BaseActivity implements MediaDecodeListener {
         if (delayFaceTaskCompositeDisposable != null) {
             delayFaceTaskCompositeDisposable.clear();
         }
+
+        if (executorService != null && !executorService.isShutdown()) {
+            executorService.shutdownNow();
+        }
+        if (progressDialog != null && progressDialog.isShowing()) {
+            progressDialog.dismiss();
+        }
+
         FaceServer.getInstance().unInit();
     }
 
@@ -265,7 +291,7 @@ public class MainActivity extends BaseActivity implements MediaDecodeListener {
 
     @Override
     public void onPreviewCallback(byte[] bytes, long time) {
-        synchronized (sync) {
+        //synchronized (sync) {
             if (ybuf == null || uvbuf == null) {
                 ybuf = ByteBuffer.allocate(mWidth * mHeight);
                 uvbuf = ByteBuffer.allocate(mWidth * mHeight / 2);
@@ -281,32 +307,39 @@ public class MainActivity extends BaseActivity implements MediaDecodeListener {
             mGLRawDataRender.setRawData(ybuf, uvbuf);
             mGLSurfaceView.requestRender();
             timeStamp = time;
-        }
 
-        // -----------人脸识别相关---------------
-        if (faceRectView != null) {
-            faceRectView.clearFaceInfo();
-        }
 
-        // 输入人脸nv21数据
-        List<FacePreviewInfo> facePreviewInfoList = faceHelper.onPreviewFrame(bytes);
-        if (facePreviewInfoList != null && faceRectView != null && drawHelper != null) {
-            drawPreviewInfo(facePreviewInfoList);
-        }
+            // -----------人脸识别相关---------------
+            if (faceRectView != null) {
+                faceRectView.clearFaceInfo();
+            }
 
-        registerFace(bytes, facePreviewInfoList, mWidth, mHeight);
-        clearLeftFace(facePreviewInfoList);
-        if (facePreviewInfoList != null && facePreviewInfoList.size() > 0) {
-            for (int i = 0; i < facePreviewInfoList.size(); i++) {
-                Integer status = requestFeatureStatusMap.get(facePreviewInfoList.get(i).getTrackId());
-                if (status == null
-                        || status == RequestFeatureStatus.TO_RETRY) {
-                    requestFeatureStatusMap.put(facePreviewInfoList.get(i).getTrackId(), RequestFeatureStatus.SEARCHING);
-                    faceHelper.requestFaceFeature(bytes, facePreviewInfoList.get(i).getFaceInfo(), mWidth, mHeight, FaceEngine.CP_PAF_NV21, facePreviewInfoList.get(i).getTrackId());
+            // 输入人脸nv21数据
+            final List<FacePreviewInfo> facePreviewInfoList = faceHelper.onPreviewFrame(bytes);
+            if (facePreviewInfoList != null && faceRectView != null && drawHelper != null) {
+                drawPreviewInfo(facePreviewInfoList);
+            }
+
+            registerFace(bytes, facePreviewInfoList, mWidth, mHeight);
+            runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    clearLeftFace(facePreviewInfoList);
+                }
+            });
+
+            if (facePreviewInfoList != null && facePreviewInfoList.size() > 0) {
+                for (int i = 0; i < facePreviewInfoList.size(); i++) {
+                    Integer status = requestFeatureStatusMap.get(facePreviewInfoList.get(i).getTrackId());
+                    if (status == null
+                            || status == RequestFeatureStatus.TO_RETRY) {
+                        requestFeatureStatusMap.put(facePreviewInfoList.get(i).getTrackId(), RequestFeatureStatus.SEARCHING);
+                        faceHelper.requestFaceFeature(bytes, facePreviewInfoList.get(i).getFaceInfo(), mWidth, mHeight, FaceEngine.CP_PAF_NV21, facePreviewInfoList.get(i).getTrackId());
 //                            Log.i(TAG, "onPreview: fr start = " + System.currentTimeMillis() + " trackId = " + facePreviewInfoList.get(i).getTrackedFaceCount());
+                    }
                 }
             }
-        }
+        //}
     }
 
     @Override
@@ -339,7 +372,34 @@ public class MainActivity extends BaseActivity implements MediaDecodeListener {
             return;
         }
         // TODO 开始提取特征值
+        doRegister();
+    }
 
+
+    public void onCleanFaceFeature(View view) {
+        if (mMediaDecodeHelper.isPlaying()) {
+            showToast("正在播放视频，无法清空特征值！！！");
+            return;
+        }
+
+        int faceNum = FaceServer.getInstance().getFaceNumber(this);
+        if (faceNum == 0) {
+            showToast(getString(R.string.batch_process_no_face_need_to_delete));
+        } else {
+            AlertDialog dialog = new AlertDialog.Builder(this)
+                    .setTitle(R.string.batch_process_notification)
+                    .setMessage(getString(R.string.batch_process_confirm_delete, faceNum))
+                    .setPositiveButton(R.string.ok, new DialogInterface.OnClickListener() {
+                        @Override
+                        public void onClick(DialogInterface dialog, int which) {
+                            int deleteCount = FaceServer.getInstance().clearAllFaces(MainActivity.this);
+                            showToast(deleteCount + " faces cleared!");
+                        }
+                    })
+                    .setNegativeButton(R.string.cancel, null)
+                    .create();
+            dialog.show();
+        }
     }
 
 
@@ -443,15 +503,19 @@ public class MainActivity extends BaseActivity implements MediaDecodeListener {
      */
     private FaceRectView faceRectView;
 
-    private Switch switchLivenessDetect;
-
     private static final int ACTION_REQUEST_PERMISSIONS = 0x001;
     /**
      * 识别阈值
      */
     private static final float SIMILAR_THRESHOLD = 0.8F;
 
-
+    //注册图所在的目录
+    private static final String ROOT_DIR = Environment.getExternalStorageDirectory().getAbsolutePath();
+    private static final String REGISTER_DIR = ROOT_DIR + File.separator + "faceid";
+    private static final String REGISTER_FAILED_DIR = REGISTER_DIR + File.separator + "failed";
+    private ExecutorService executorService;
+    private ProgressDialog progressDialog = null;
+    private TextView tvNotificationRegisterResult;
 
     private final FaceListener faceListener = new FaceListener() {
         @Override
@@ -488,10 +552,9 @@ public class MainActivity extends BaseActivity implements MediaDecodeListener {
             }
         }
 
-        @Override
-        public void onFaceLivenessInfoGet(LivenessInfo livenessInfo, final Integer requestId, Integer errorCode) {
-
-        }
+//        @Override
+//        public void onFaceLivenessInfoGet(LivenessInfo livenessInfo, final Integer requestId, Integer errorCode) {
+//        }
     };
 
     private void registerFace(final byte[] nv21, final List<FacePreviewInfo> facePreviewInfoList, final int previewWidth, final int previewHeight) {
@@ -750,8 +813,106 @@ public class MainActivity extends BaseActivity implements MediaDecodeListener {
 
 
 
+    private void doRegister() {
+        File dir = new File(REGISTER_DIR);
+        if (!dir.exists()) {
+            showToast(getString(R.string.batch_process_path_is_not_exists, REGISTER_DIR));
+            return;
+        }
+        if (!dir.isDirectory()) {
+            showToast(getString(R.string.batch_process_path_is_not_dir, REGISTER_DIR));
+            return;
+        }
+        final File[] jpgFiles = dir.listFiles(new FilenameFilter() {
+            @Override
+            public boolean accept(File dir, String name) {
+                return name.endsWith(FaceServer.IMG_SUFFIX);
+            }
+        });
 
+        if (executorService == null) {
+            executorService = Executors.newSingleThreadExecutor();
+        }
 
+        executorService.execute(new Runnable() {
+            @Override
+            public void run() {
+                final int totalCount = jpgFiles.length;
 
+                int successCount = 0;
+                runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        progressDialog.setMaxProgress(totalCount);
+                        progressDialog.show();
+                        tvNotificationRegisterResult.setText("");
+                        tvNotificationRegisterResult.append(getString(R.string.batch_process_processing_please_wait));
+                    }
+                });
+                for (int i = 0; i < totalCount; i++) {
+                    final int finalI = i;
+                    runOnUiThread(new Runnable() {
+                        @Override
+                        public void run() {
+                            if (progressDialog != null) {
+                                progressDialog.refreshProgress(finalI);
+                            }
+                        }
+                    });
+                    final File jpgFile = jpgFiles[i];
+                    Bitmap bitmap = BitmapFactory.decodeFile(jpgFile.getAbsolutePath());
+                    if (bitmap == null) {
+                        File failedFile = new File(REGISTER_FAILED_DIR + File.separator + jpgFile.getName());
+                        if (!failedFile.getParentFile().exists()) {
+                            failedFile.getParentFile().mkdirs();
+                        }
+                        jpgFile.renameTo(failedFile);
+                        continue;
+                    }
+                    bitmap = ArcSoftImageUtil.getAlignedBitmap(bitmap, true);
+                    if (bitmap == null) {
+                        File failedFile = new File(REGISTER_FAILED_DIR + File.separator + jpgFile.getName());
+                        if (!failedFile.getParentFile().exists()) {
+                            failedFile.getParentFile().mkdirs();
+                        }
+                        jpgFile.renameTo(failedFile);
+                        continue;
+                    }
+                    byte[] bgr24 = ArcSoftImageUtil.createImageData(bitmap.getWidth(), bitmap.getHeight(), ArcSoftImageFormat.BGR24);
+                    int transformCode = ArcSoftImageUtil.bitmapToImageData(bitmap, bgr24, ArcSoftImageFormat.BGR24);
+                    if (transformCode != ArcSoftImageUtilError.CODE_SUCCESS) {
+                        runOnUiThread(new Runnable() {
+                            @Override
+                            public void run() {
+                                progressDialog.dismiss();
+                                tvNotificationRegisterResult.append("");
+                            }
+                        });
+                        return;
+                    }
+                    boolean success = FaceServer.getInstance().registerBgr24(MainActivity.this, bgr24, bitmap.getWidth(), bitmap.getHeight(),
+                            jpgFile.getName().substring(0, jpgFile.getName().lastIndexOf(".")));
+                    if (!success) {
+                        File failedFile = new File(REGISTER_FAILED_DIR + File.separator + jpgFile.getName());
+                        if (!failedFile.getParentFile().exists()) {
+                            failedFile.getParentFile().mkdirs();
+                        }
+                        jpgFile.renameTo(failedFile);
+                    } else {
+                        successCount++;
+                    }
+                }
+                final int finalSuccessCount = successCount;
+                runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        progressDialog.dismiss();
+                        tvNotificationRegisterResult.append(getString(R.string.batch_process_finished_info, totalCount, finalSuccessCount, totalCount - finalSuccessCount, REGISTER_FAILED_DIR));
+                    }
+                });
+                Logger.d("run: " + executorService.isShutdown());
+            }
+        });
+    }
 
 }

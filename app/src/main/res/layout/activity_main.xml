@@ -23,8 +23,21 @@
         android:layout_height="wrap_content">
 
         <Button
-            android:text="提取特征"
+            android:text="批量注册"
             android:onClick="onExtractFaceFeature"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"/>
+
+        <TextView
+            android:layout_margin="10dp"
+            android:layout_gravity="center_horizontal"
+            android:id="@+id/notification_register_result"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content" />
+
+        <Button
+            android:text="清空人脸库"
+            android:onClick="onCleanFaceFeature"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"/>
 
