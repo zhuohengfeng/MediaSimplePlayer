@@ -3,9 +3,9 @@ package com.rokid.simpleplayer;
 import android.opengl.GLES20;
 import android.opengl.GLSurfaceView;
 
-import com.rokid.simpleplayer.utils.GLShaderUtil;
-import com.rokid.simpleplayer.utils.GLTextureUtil;
-import com.rokid.simpleplayer.utils.Logger;
+import com.rokid.simpleplayer.gl.GLShaderUtil;
+import com.rokid.simpleplayer.gl.GLTextureUtil;
+import com.rokid.simpleplayer.gl.Logger;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -89,8 +89,12 @@ public class GLRawDataRender implements GLSurfaceView.Renderer {
         }
 
         synchronized (GLRawDataRender.class) {
-            GLES20.glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
+            GLES20.glClearColor(0.0f, 0.0f, 0.0f, 1f);
             GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT | GLES20.GL_DEPTH_BUFFER_BIT);
+
+            if (yBuffer == null || uvBuffer == null) {
+                return;
+            }
 
             GLES20.glUseProgram(mProgram);
 
@@ -127,7 +131,6 @@ public class GLRawDataRender implements GLSurfaceView.Renderer {
     }
 
     public synchronized void setRawData(ByteBuffer ybuf, ByteBuffer uvbuf) {
-        Logger.d("setVideoWidthAndHeight setRawData");
         this.yBuffer = ybuf;
         this.uvBuffer = uvbuf;
     }

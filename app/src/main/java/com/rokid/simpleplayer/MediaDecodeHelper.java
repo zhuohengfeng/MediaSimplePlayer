@@ -7,10 +7,8 @@ import android.media.MediaCodec;
 import android.media.MediaCodecInfo;
 import android.media.MediaExtractor;
 import android.media.MediaFormat;
-import android.util.Log;
-import android.view.Surface;
 
-import com.rokid.simpleplayer.utils.Logger;
+import com.rokid.simpleplayer.gl.Logger;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -198,11 +196,8 @@ public class MediaDecodeHelper {
 
                     showSupportedColorFormat(videoCodec.getCodecInfo().getCapabilitiesForType(mime));
                     if(isColorFormatSupported(decodeColorFormat, videoCodec.getCodecInfo().getCapabilitiesForType(mime))){
-                        Logger.d( "支持YUV NV21格式");
+                        Logger.d( "设置COLOR_FormatYUV420Flexible格式");
                         mediaFormat.setInteger(MediaFormat.KEY_COLOR_FORMAT, decodeColorFormat);
-                    }
-                    else {
-                        Logger.d("不支持YUV NV21格式");
                     }
 
                     // surface设置为空，这样才能得到YUV数据
@@ -278,6 +273,7 @@ public class MediaDecodeHelper {
             videoExtractor.release();
 
             // 播放完成
+            MediaDecodeHelper.this.stop();
             if (mMediaDecodeListener != null) {
                 mMediaDecodeListener.onStopped();
             }
