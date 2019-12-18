@@ -37,7 +37,7 @@ public class FaceRectView extends View {
     }
 
     @Override
-    protected void onDraw(Canvas canvas) {
+    protected synchronized void onDraw(Canvas canvas) {
         super.onDraw(canvas);
         if (drawInfoList != null && drawInfoList.size() > 0) {
             for (int i = 0; i < drawInfoList.size(); i++) {
@@ -46,17 +46,17 @@ public class FaceRectView extends View {
         }
     }
 
-    public void clearFaceInfo() {
+    public synchronized void clearFaceInfo() {
         drawInfoList.clear();
         postInvalidate();
     }
 
-    public void addFaceInfo(DrawInfo faceInfo) {
+    public synchronized void addFaceInfo(DrawInfo faceInfo) {
         drawInfoList.add(faceInfo);
         postInvalidate();
     }
 
-    public void addFaceInfo(List<DrawInfo> faceInfoList) {
+    public synchronized void addFaceInfo(List<DrawInfo> faceInfoList) {
         drawInfoList.addAll(faceInfoList);
         postInvalidate();
     }

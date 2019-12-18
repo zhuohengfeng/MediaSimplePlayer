@@ -202,6 +202,9 @@ public class MainActivity extends BaseActivity implements MediaDecodeListener {
 
 
     private void initMediaCodec() {
+
+
+
         mGLRawDataRender = new GLRawDataRender();
         mGLSurfaceView = findViewById(R.id.play_textureview);
         mGLSurfaceView.setEGLContextClientVersion(2);
@@ -291,7 +294,7 @@ public class MainActivity extends BaseActivity implements MediaDecodeListener {
 
     @Override
     public void onPreviewCallback(byte[] bytes, long time) {
-        //synchronized (sync) {
+        synchronized (sync) {
             if (ybuf == null || uvbuf == null) {
                 ybuf = ByteBuffer.allocate(mWidth * mHeight);
                 uvbuf = ByteBuffer.allocate(mWidth * mHeight / 2);
@@ -321,12 +324,7 @@ public class MainActivity extends BaseActivity implements MediaDecodeListener {
             }
 
             registerFace(bytes, facePreviewInfoList, mWidth, mHeight);
-            runOnUiThread(new Runnable() {
-                @Override
-                public void run() {
-                    clearLeftFace(facePreviewInfoList);
-                }
-            });
+            clearLeftFace(facePreviewInfoList);
 
             if (facePreviewInfoList != null && facePreviewInfoList.size() > 0) {
                 for (int i = 0; i < facePreviewInfoList.size(); i++) {
@@ -339,7 +337,7 @@ public class MainActivity extends BaseActivity implements MediaDecodeListener {
                     }
                 }
             }
-        //}
+        }
     }
 
     @Override
@@ -607,7 +605,7 @@ public class MainActivity extends BaseActivity implements MediaDecodeListener {
             String name = faceHelper.getName(trackId);
             Integer recognizeStatus = requestFeatureStatusMap.get(trackId);
 
-            Logger.d("drawPreviewInfo trackId="+trackId+", name="+name+", recognizeStatus="+recognizeStatus);
+            //Logger.d("drawPreviewInfo trackId="+trackId+", name="+name+", recognizeStatus="+recognizeStatus);
 
             // 根据识别结果和活体结果设置颜色
             int color = RecognizeColor.COLOR_UNKNOWN;
@@ -617,6 +615,7 @@ public class MainActivity extends BaseActivity implements MediaDecodeListener {
                 }
                 if (recognizeStatus == RequestFeatureStatus.SUCCEED) {
                     color = RecognizeColor.COLOR_SUCCESS;
+                    Logger.d("Rokid-Face: 找到人脸="+name+", trackId="+trackId);
                 }
             }
 
@@ -637,7 +636,13 @@ public class MainActivity extends BaseActivity implements MediaDecodeListener {
             for (int i = compareResultList.size() - 1; i >= 0; i--) {
                 if (!requestFeatureStatusMap.containsKey(compareResultList.get(i).getTrackId())) {
                     compareResultList.remove(i);
-                    adapter.notifyItemRemoved(i);
+                    final int removeId = i;
+                    runOnUiThread(new Runnable() {
+                        @Override
+                        public void run() {
+                            adapter.notifyItemRemoved(removeId);
+                        }
+                    });
                 }
             }
         }

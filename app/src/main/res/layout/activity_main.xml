@@ -32,6 +32,7 @@
             android:layout_margin="10dp"
             android:layout_gravity="center_horizontal"
             android:id="@+id/notification_register_result"
+            android:text="请把图片放在/sdcard/faceid目录下"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content" />
 
