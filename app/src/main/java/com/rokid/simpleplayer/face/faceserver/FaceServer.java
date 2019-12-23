@@ -33,7 +33,7 @@ public class FaceServer {
     public static final String IMG_SUFFIX = ".jpg";
     private static FaceEngine faceEngine = null;
     private static FaceServer faceServer = null;
-    private static List<FaceRegisterInfo> faceRegisterInfoList;
+    private static List<FaceRegisterInfo> faceRegisterInfoList; // 存放所有特征值信息
     public static String ROOT_PATH;
     /**
      * 存放注册图的目录
@@ -309,7 +309,7 @@ public class FaceServer {
                 Log.e(TAG, "registerBgr24: can not create feature directory");
                 return false;
             }
-            //图片存储的文件夹
+            //人脸抠图存储的文件夹
             File imgDir = new File(ROOT_PATH + File.separator + SAVE_IMG_DIR);
             if (!imgDir.exists() && !imgDir.mkdirs()) {
                 Log.e(TAG, "registerBgr24: can not create image directory");
@@ -317,11 +317,12 @@ public class FaceServer {
             }
             //人脸检测
             List<FaceInfo> faceInfoList = new ArrayList<>();
+            // 传入图片，得到人脸信息faceInfoList
             int code = faceEngine.detectFaces(bgr24, width, height, FaceEngine.CP_PAF_BGR24, faceInfoList);
             if (code == ErrorInfo.MOK && faceInfoList.size() > 0) {
                 FaceFeature faceFeature = new FaceFeature();
 
-                //特征提取
+                //特征提取，提取第一张人脸(最大人脸)?
                 code = faceEngine.extractFaceFeature(bgr24, width, height, FaceEngine.CP_PAF_BGR24, faceInfoList.get(0), faceFeature);
                 String userName = name == null ? String.valueOf(System.currentTimeMillis()) : name;
                 try {
@@ -346,7 +347,7 @@ public class FaceServer {
                         // 创建一个头像的Bitmap，存放旋转结果图
                         Bitmap headBmp = getHeadImage(bgr24, width, height, faceInfoList.get(0).getOrient(), cropRect, ArcSoftImageFormat.BGR24);
                         // 保存到本地
-                        headBmp.compress(Bitmap.CompressFormat.JPEG, 100, fosImage);
+                        headBmp.compress(Bitmap.CompressFormat.JPEG, 70, fosImage);
                         fosImage.close();
 
                         // 保存特征数据

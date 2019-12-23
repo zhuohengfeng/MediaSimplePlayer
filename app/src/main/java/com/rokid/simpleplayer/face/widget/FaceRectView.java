@@ -8,7 +8,6 @@ import android.view.View;
 
 import androidx.annotation.Nullable;
 
-
 import com.rokid.simpleplayer.face.model.DrawInfo;
 import com.rokid.simpleplayer.face.utils.DrawHelper;
 
@@ -51,7 +50,7 @@ public class FaceRectView extends View {
         postInvalidate();
     }
 
-    public synchronized void addFaceInfo(DrawInfo faceInfo) {
+    public void addFaceInfo(DrawInfo faceInfo) {
         drawInfoList.add(faceInfo);
         postInvalidate();
     }
