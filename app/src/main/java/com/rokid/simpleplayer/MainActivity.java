@@ -30,6 +30,7 @@ import com.rokid.simpleplayer.face.utils.ConfigUtil;
 import com.rokid.simpleplayer.face.utils.DrawHelper;
 import com.rokid.simpleplayer.face.utils.FaceHelper;
 import com.rokid.simpleplayer.face.utils.FaceListener;
+import com.rokid.simpleplayer.face.utils.FileUtils;
 import com.rokid.simpleplayer.face.utils.RecognizeColor;
 import com.rokid.simpleplayer.face.utils.RequestFeatureStatus;
 import com.rokid.simpleplayer.face.widget.FaceRectView;
@@ -416,6 +417,16 @@ public class MainActivity extends BaseActivity implements MediaDecodeListener {
             return;
         }
 
+        try {
+            File logDir = new File(VIDEO_LOG_PATH);
+            if(logDir.exists()){
+                FileUtils.deleteDirection(logDir);
+                FileUtils.createFolder(VIDEO_LOG_PATH);
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
         File dir = new File(VIDEO_PATH);
         for(String videoPath :dir.list()){
             Logger.d("videoPath:"+videoPath);
@@ -433,7 +444,7 @@ public class MainActivity extends BaseActivity implements MediaDecodeListener {
     private void startDetect(String videoPath){
         File dir = null;
         try {
-            dir = new File(VIDEO_LOG_PATH + getVersionName(this));
+            dir = new File(VIDEO_LOG_PATH);
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -470,6 +481,14 @@ public class MainActivity extends BaseActivity implements MediaDecodeListener {
                             @Override
                             public void run() {
                                 showLongToast("已完成所有视频检测");
+                                if (task != null) {
+                                    task.cancel();
+                                    task = null;
+                                }
+                                if (timer != null) {
+                                    timer.cancel();
+                                    timer = null;
+                                }
                             }
                         });
                     }

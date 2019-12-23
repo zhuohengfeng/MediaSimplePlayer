@@ -54,7 +54,7 @@ public abstract class BaseActivity extends Activity {
 
 
     protected final static String VIDEO_PATH = "/sdcard/videoTest/";
-    protected final static String VIDEO_LOG_PATH = "/sdcard/videoLog/version-";
+    protected final static String VIDEO_LOG_PATH = "/sdcard/videoLog/";
     protected FileWriter writer;
 
     protected boolean libraryExists = true;
