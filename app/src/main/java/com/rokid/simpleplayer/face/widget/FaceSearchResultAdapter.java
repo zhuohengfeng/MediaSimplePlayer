@@ -40,11 +40,16 @@ public class FaceSearchResultAdapter extends RecyclerView.Adapter<FaceSearchResu
         if (compareResultList == null) {
             return;
         }
-        File imgFile = new File(FaceServer.ROOT_PATH + File.separator + FaceServer.SAVE_IMG_DIR + File.separator + compareResultList.get(position).getUserName() + FaceServer.IMG_SUFFIX);
-        Glide.with(holder.imageView)
-                .load(imgFile)
-                .into(holder.imageView);
-        holder.textView.setText(compareResultList.get(position).getUserName());
+        try {
+            File imgFile = new File(FaceServer.ROOT_PATH + File.separator + FaceServer.SAVE_IMG_DIR + File.separator + compareResultList.get(position).getUserName() + FaceServer.IMG_SUFFIX);
+            Glide.with(holder.imageView)
+                    .load(imgFile)
+                    .into(holder.imageView);
+            holder.textView.setText(compareResultList.get(position).getUserName());
+        }
+        catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 
     @Override

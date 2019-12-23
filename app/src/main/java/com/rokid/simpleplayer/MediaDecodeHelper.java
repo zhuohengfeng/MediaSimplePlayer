@@ -98,6 +98,7 @@ public class MediaDecodeHelper {
         stop();
         if (mVideoDecodeThread != null) {
             mVideoDecodeThread.interrupt();
+            mVideoDecodeThread = null;
         }
     }
 

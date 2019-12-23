@@ -20,6 +20,7 @@ import android.view.View;
 import android.view.WindowManager;
 import android.widget.Switch;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import androidx.core.app.ActivityCompat;
 import androidx.recyclerview.widget.DefaultItemAnimator;
@@ -58,12 +59,17 @@ import com.rokid.simpleplayer.face.widget.ProgressDialog;
 import com.rokid.simpleplayer.gl.Logger;
 
 import java.io.File;
+import java.io.FileWriter;
 import java.io.FilenameFilter;
+import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Enumeration;
 import java.util.List;
 import java.util.Map;
+import java.util.Timer;
+import java.util.TimerTask;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -82,7 +88,7 @@ import static com.arcsoft.face.enums.DetectFaceOrientPriority.ASF_OP_ALL_OUT;
 
 public class MainActivity extends BaseActivity implements MediaDecodeListener {
 
-    private final static String VIDEO_PATH = "/sdcard/videoTest/DJI_720p_scene5_博物馆_20191205.mp4";
+    private final static String VIDEO_PATH = "/sdcard/videoTest/test.mp4";
 
     private MediaDecodeHelper mMediaDecodeHelper;
 
@@ -202,9 +208,6 @@ public class MainActivity extends BaseActivity implements MediaDecodeListener {
 
 
     private void initMediaCodec() {
-
-
-
         mGLRawDataRender = new GLRawDataRender();
         mGLSurfaceView = findViewById(R.id.play_textureview);
         mGLSurfaceView.setEGLContextClientVersion(2);
@@ -212,7 +215,6 @@ public class MainActivity extends BaseActivity implements MediaDecodeListener {
         mGLSurfaceView.setRenderMode(GLSurfaceView.RENDERMODE_WHEN_DIRTY);
         mMediaDecodeHelper = new MediaDecodeHelper();
         mMediaDecodeHelper.setMediaDecodeListener(this);
-        mMediaDecodeHelper.setVideoFilePath(VIDEO_PATH);
     }
 
     @Override
@@ -264,6 +266,8 @@ public class MainActivity extends BaseActivity implements MediaDecodeListener {
 
     @Override
     public void onPrepared(int width, int height) {
+        stopped = false;
+
         mWidth = width;
         mHeight = height;
         mGLRawDataRender.setVideoWidthAndHeight(mWidth, mHeight);
@@ -342,7 +346,7 @@ public class MainActivity extends BaseActivity implements MediaDecodeListener {
 
     @Override
     public void onStopped() {
-
+        this.stopped = true;
     }
 
     //---------------------------------
@@ -356,9 +360,71 @@ public class MainActivity extends BaseActivity implements MediaDecodeListener {
             return;
         }
 
+        File dir = new File("/sdcard/videoTest/");
+        for(String videoPath :dir.list()){
+            Logger.d("videoPath:"+videoPath);
+            videoPaths.add("/sdcard/videoTest/"+videoPath);
+        }
+        if(videoPaths.size()>0) {
+            startDetect(videoPaths.poll());
+            listenNextVideo();
+        }
+    }
+
+
+    private void startDetect(String videoPath){
+        File dir = null;
+        try {
+            dir = new File("/sdcard/videoLog/version-"+ getVersionName(this));
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        if(!dir.exists()){
+            dir.mkdirs();
+        }
+        File video = new File(videoPath);
+        try {
+            writer = new FileWriter(dir+File.separator+video.getName().split("\\.")[0]+".log");
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
         // 开始解码
+        mMediaDecodeHelper.destroy();
+        mMediaDecodeHelper.setVideoFilePath(videoPath);
         mMediaDecodeHelper.play();
     }
+
+    private ArrayDeque<String> videoPaths = new ArrayDeque<>();
+
+    /**
+     * 每隔10s检测一次
+     */
+    private boolean stopped = false;
+    private Timer timer;
+    private TimerTask task;
+    private void listenNextVideo() {
+        timer = new Timer();
+        task = new TimerTask() {
+            @Override
+            public void run() {
+                if(stopped){
+                    String videoPath = videoPaths.poll();
+                    if(videoPath != null ) {
+                        startDetect(videoPath);
+                    }else{
+                        Toast.makeText(MainActivity.this,"已完成",Toast.LENGTH_LONG);
+                    }
+                }
+            }
+        };
+        timer.schedule(task,0,10000);
+    }
+
+
+
+
+
 
     /**
      * 开始提取特征值
@@ -618,6 +684,7 @@ public class MainActivity extends BaseActivity implements MediaDecodeListener {
                     Logger.d("Rokid-Face: 找到人脸="+name+", trackId="+trackId);
                 }
             }
+            writeLog(timeStamp, name, trackId);
 
             drawInfoList.add(new DrawInfo(drawHelper.adjustRect(facePreviewInfoList.get(i).getFaceInfo().getRect()),
                     GenderInfo.UNKNOWN, AgeInfo.UNKNOWN_AGE, LivenessInfo.UNKNOWN, color,

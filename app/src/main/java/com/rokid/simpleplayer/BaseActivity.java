@@ -2,12 +2,17 @@ package com.rokid.simpleplayer;
 
 import android.Manifest;
 import android.app.Activity;
+import android.content.Context;
+import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
+import android.text.TextUtils;
 import android.widget.Toast;
 
 import androidx.core.content.ContextCompat;
 
 import java.io.File;
+import java.io.FileWriter;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -86,4 +91,28 @@ public abstract class BaseActivity extends Activity {
         return exists;
     }
 
+
+    protected String getVersionName(Context context) throws Exception {
+        // 获取packagemanager的实例
+        PackageManager packageManager = context.getPackageManager();
+        // getPackageName()是你当前类的包名，0代表是获取版本信息
+        PackageInfo packInfo = packageManager.getPackageInfo(context.getPackageName(), 0);
+        String version = packInfo.versionName;
+        return version;
+    }
+
+    protected FileWriter writer;
+    protected void writeLog(long timeStamp, String name, int trackId) {
+        try {
+            StringBuffer buffer = new StringBuffer();
+            String recgname = TextUtils.isEmpty(name) ? "null": name;
+            buffer.append("timeStamp:").append(timeStamp)
+                    .append(" trackId:").append(trackId)
+                    .append(" name:").append(recgname)
+                    .append("\n");
+            writer.write(buffer.toString());
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
 }
